@@ -1,0 +1,10 @@
+[package]
+name = "qtictac-ai"
+version = "0.1.0"
+authors = ["Josh Hejna <josh.hejna@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+rayon = "1.0.3"
+ego-tree = "0.6.0"
+smallvec = "0.6.7"
