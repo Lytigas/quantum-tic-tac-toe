@@ -1,148 +1,128 @@
+#![feature(self_struct_ctor)]
 #![feature(test)]
 extern crate test;
 use std::thread_local;
 
-thread_local! {
-    pub static SRCH_Q: Vec<u8> = Vec::with_capacity(20);
-}
+pub mod graph;
 
-/// Graph with implicit nodes 0-8 for a tic tac toe board
-#[derive(Debug, Clone)]
-pub struct BoardGraph {
-    edges: [[u8; 9]; 9],
-}
+#[derive(Copy, Debug, Clone)]
+pub struct ClassicalBoardState(u32);
 
-impl BoardGraph {
+impl ClassicalBoardState {
     pub fn new() -> Self {
-        Self { edges: [[0; 9]; 9] }
+        Self(0)
     }
 
-    pub fn add_edge(&mut self, u: u8, v: u8) {
-        self.edges[u as usize][v as usize] += 1;
-        self.edges[v as usize][u as usize] += 1;
+    fn x_mask(sq: u8) -> u32 {
+        1 << (2 * sq)
     }
 
-    pub fn has_cycle(&self, start: u8) -> bool {
-        // case 1: cycle of length 2
-        // find the max number of edges to one node
-        if self.edges[start as usize]
-            .iter()
-            .max_by_key(|&x| x)
-            .unwrap()
-            >= &2
-        {
-            return true;
-        }
+    fn o_mask(sq: u8) -> u32 {
+        1 << (2 * sq + 1)
+    }
 
-        // case 2: cycle of length >2 with bfs
-        fn bfs(
-            start: u8,
-            parent: Option<u8>,
-            visited: &mut [bool; 9],
-            graph: &[[u8; 9]; 9],
-        ) -> bool {
-            if visited[start as usize] {
-                return true;
-            };
-            visited[start as usize] = true;
-            let parent_idx = match parent {
-                Some(p) => p as usize,
-                None => std::usize::MAX,
-            };
-            for v in graph[start as usize]
-                .iter()
-                .enumerate()
-                .filter_map(|(idx, &val)| {
-                    if val > 0 && idx != parent_idx {
-                        Some(idx)
-                    } else {
-                        None
-                    }
-                }) {
-                if bfs(v as u8, Some(start), visited, graph) {
-                    return true;
-                }
+    pub fn set_x(&mut self, sq: u8) {
+        self.0 |= Self::x_mask(sq);
+        self.0 &= !Self::o_mask(sq);
+    }
+
+    pub fn set_o(&mut self, sq: u8) {
+        self.0 |= Self::o_mask(sq);
+        self.0 &= !Self::x_mask(sq);
+    }
+
+    pub fn is_x(&self, sq: u8) -> bool {
+        self.0 & Self::x_mask(sq) > 0
+    }
+
+    pub fn is_o(&self, sq: u8) -> bool {
+        self.0 & Self::o_mask(sq) > 0
+    }
+}
+
+pub struct QuantumBoardState([u16; 9]);
+
+impl QuantumBoardState {
+    pub fn new() -> Self {
+        Self([0; 9])
+    }
+
+    fn mask(idx: u8) -> u16 {
+        1 << idx
+    }
+
+    pub fn is(&self, idx: u8, sq: u8) -> bool {
+        self.0[sq as usize] & Self::mask(idx) > 0
+    }
+
+    pub fn add(&mut self, idx: u8, sq: u8, sq2: u8) {
+        self.0[sq as usize] |= Self::mask(idx);
+        self.0[sq2 as usize] |= Self::mask(idx);
+    }
+
+    pub fn clear(&mut self, sq: u8) {
+        self.0[sq as usize] = 0
+    }
+
+    pub fn is_sound(&self) -> bool {
+        // for each move, there should be either two or zero instances
+        for mov in 0..9 {
+            let mut count = 0;
+            for sq in 0..9 {
+                count += if self.is(mov, sq) { 1 } else { 0 };
             }
-            false
+            if !(count == 2 || count == 0) {
+                return false;
+            }
         }
-
-        let mut visited = [false; 9];
-        bfs(start, None, &mut visited, &self.edges)
-    }
-
-    pub fn clear_vert(&mut self, v: u8) {
-        self.edges[v as usize] = [0; 9];
-        for arr in self.edges.iter_mut() {
-            arr[v as usize] = 0;
-        }
+        true
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::test::Bencher;
+mod cboard_test {
     use super::*;
     #[test]
-    fn two_cycle() {
-        let mut b = BoardGraph::new();
-        assert!(!b.has_cycle(0));
-        b.add_edge(0, 1);
-        b.add_edge(1, 0);
-        assert!(b.has_cycle(0));
-        assert!(b.has_cycle(1));
-
-        b = BoardGraph::new();
-        b.add_edge(2, 4);
-        assert!(!b.has_cycle(2));
-        assert!(!b.has_cycle(7));
-        b.add_edge(2, 4);
-        assert!(b.has_cycle(2));
-        assert!(b.has_cycle(4));
-
-        b = BoardGraph::new();
-        b.add_edge(1, 8);
-        assert!(!b.has_cycle(0));
-        assert!(!b.has_cycle(1));
-        b.add_edge(1, 8);
-        assert!(b.has_cycle(8));
-        assert!(b.has_cycle(1));
+    fn cboard_test() {
+        let mut cb = ClassicalBoardState::new();
+        let mut tester = |s| {
+            cb.set_x(s);
+            assert!(cb.is_x(s));
+            cb.set_o(s);
+            assert!(!cb.is_x(s));
+            assert!(cb.is_o(s));
+            cb.set_x(s);
+            assert!(!cb.is_o(s));
+            assert!(cb.is_x(s));
+        };
+        for i in 0..9 {
+            tester(i)
+        }
     }
 
     #[test]
-    fn complex_cycle() {
-        let mut b = BoardGraph::new();
-        assert!(!b.has_cycle(0));
-        b.add_edge(0, 1);
-        b.add_edge(1, 4);
-        b.add_edge(4, 3);
-        b.add_edge(3, 6);
-        b.add_edge(6, 7);
-        assert!(!b.has_cycle(0));
-        assert!(!b.has_cycle(7));
-        assert!(!b.has_cycle(4));
-        b.add_edge(1, 2);
-        b.add_edge(1, 5);
-        assert!(!b.has_cycle(5));
-        b.add_edge(4, 8);
-        assert!(!b.has_cycle(0));
-        b.add_edge(7, 1);
-        assert!(b.has_cycle(0));
-        b.clear_vert(4);
-        assert!(!b.has_cycle(0));
-    }
-
-    #[bench]
-    fn bench(bench: &mut Bencher) {
-        let mut b = BoardGraph::new();
-        b.add_edge(0, 1);
-        b.add_edge(1, 4);
-        b.add_edge(4, 3);
-        b.add_edge(3, 6);
-        b.add_edge(6, 7);
-        b.add_edge(1, 2);
-        b.add_edge(1, 5);
-        b.add_edge(4, 8);
-        b.add_edge(7, 1);
-        bench.iter(|| b.has_cycle(0));
+    fn qboard_test() {
+        let mut qb = QuantumBoardState::new();
+        let mut tester = |mov, sq, sq2| {
+            qb.add(mov, sq, sq2);
+            assert!(qb.is(mov, sq));
+            assert!(qb.is_sound());
+        };
+        for i in 0..9 {
+            let sqs = [
+                (0, 4),
+                (1, 3),
+                (4, 5),
+                (8, 0),
+                (2, 4),
+                (1, 3),
+                (5, 7),
+                (8, 2),
+                (1, 4),
+            ];
+            tester(i, sqs[i as usize].0, sqs[i as usize].1);
+        }
+        qb.clear(8);
+        assert!(!qb.is_sound());
     }
 }
