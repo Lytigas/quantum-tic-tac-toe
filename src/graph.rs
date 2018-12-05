@@ -10,6 +10,7 @@ impl BoardGraph {
     }
 
     pub fn add_edge(&mut self, u: u8, v: u8) {
+        debug_assert!(u != v);
         self.edges[u as usize][v as usize] += 1;
         self.edges[v as usize][u as usize] += 1;
     }
