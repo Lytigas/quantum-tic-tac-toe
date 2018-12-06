@@ -1,10 +1,9 @@
-#![feature(self_struct_ctor)]
 #![feature(test)]
 extern crate test;
 
 pub mod graph;
 
-#[derive(Copy, Debug, Clone)]
+#[derive(Copy, Clone)]
 pub struct ClassicalBoardState(u32);
 
 impl ClassicalBoardState {
@@ -43,7 +42,15 @@ impl ClassicalBoardState {
     }
 }
 
-#[derive(Debug, Clone)]
+use std::fmt;
+
+impl fmt::Debug for ClassicalBoardState {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "ClassicalBoardState({:#032b})", self.0)
+    }
+}
+
+#[derive(Clone)]
 pub struct QuantumBoardState([u16; 9]);
 
 impl QuantumBoardState {
@@ -89,6 +96,28 @@ impl QuantumBoardState {
             }
         }
         true
+    }
+}
+
+impl fmt::Debug for QuantumBoardState {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "QuantumBoardState {{
+\t0:{:016b} 1:{:016b} 2:{:016b},
+\t3:{:016b} 4:{:016b} 5:{:016b},
+\t6:{:016b} 7:{:016b} 8:{:016b},
+}}",
+            self.0[0],
+            self.0[1],
+            self.0[2],
+            self.0[3],
+            self.0[4],
+            self.0[5],
+            self.0[6],
+            self.0[7],
+            self.0[8]
+        )
     }
 }
 
@@ -170,6 +199,91 @@ impl BoardState {
 
     pub fn do_move(&mut self, m: Move) {
         debug_assert!(self.is_valid(m));
+        match m {
+            Move::Quantum(sq1, sq2) => {
+                self.q.add(self.next_mov, sq1, sq2);
+                self.g.add_edge(sq1, sq2);
+                self.next_mov += 1;
+                self.g.has_cycle(sq1, &mut self.cycle);
+            }
+            Move::Collapse { sq, mov } => {
+                // find the index of sq in the cycle
+                let idx = self
+                    .cycle
+                    .iter()
+                    .enumerate()
+                    .filter(|(_idx, &s)| s == sq)
+                    .nth(0)
+                    .unwrap()
+                    .0;
+                // turn the cycle into a line so that we don't backtrack
+                self.g
+                    .clear_edge(sq, self.cycle[wrap(idx as isize - 1, self.cycle.len())]);
+
+                // last mask contains the moves that were in the last square but did not become classical
+                let mut last_mask = QuantumBoardState::mask(mov);
+
+                // iterate starting at sq like the cycle was a circular buffer
+                let c_len = self.cycle.len();
+                for i in (0..c_len).map(|x| wrap((x + idx) as isize, c_len)) {
+                    // we should be able to greedily collapse nodes
+                    // once there's a cycle, all square connected to the cycle must be collapsed in a cycle resolution
+                    let square = self.cycle[i];
+                    let qmask = self.q.mask_in(self.cycle[i]);
+                    // the decision for this square must have been excluded from the last collapse and also be in this square
+                    let decision_mask = qmask & last_mask;
+                    match decision_mask {
+                        0b000000001 => self.c.set_x(square),
+                        0b000000010 => self.c.set_o(square),
+                        0b000000100 => self.c.set_x(square),
+                        0b000001000 => self.c.set_x(square),
+                        0b000010000 => self.c.set_o(square),
+                        0b000100000 => self.c.set_x(square),
+                        0b001000000 => self.c.set_o(square),
+                        0b010000000 => self.c.set_x(square),
+                        0b100000000 => self.c.set_o(square),
+                        _ => unreachable!(),
+                    }
+                    last_mask = qmask & (!decision_mask);
+                    self.q.clear(square);
+                    let next_square = self.cycle[wrap(i as isize + 1, self.cycle.len())];
+                    fn resolve_depth_first(
+                        start: u8,
+                        parent: u8,
+                        last_mask: u16,
+                        board: &mut BoardState,
+                    ) {
+                        // resolve this one
+                        let decision_mask = board.q.mask_in(start) & last_mask;
+                        match decision_mask {
+                            0b000000001 => board.c.set_x(start),
+                            0b000000010 => board.c.set_o(start),
+                            0b000000100 => board.c.set_x(start),
+                            0b000001000 => board.c.set_x(start),
+                            0b000010000 => board.c.set_o(start),
+                            0b000100000 => board.c.set_x(start),
+                            0b001000000 => board.c.set_o(start),
+                            0b010000000 => board.c.set_x(start),
+                            0b100000000 => board.c.set_o(start),
+                            _ => unreachable!(),
+                        };
+                        let next_last_mask = board.q.mask_in(start) & (!decision_mask);
+                        for sq in board.g.edges()[start as usize]
+                            .clone()
+                            .into_iter()
+                            .enumerate()
+                            .filter(|&(idx, &amt)| amt > 0 && idx != parent as usize)
+                            .map(|(idx, _)| idx)
+                        {
+                            resolve_depth_first(sq as u8, start, next_last_mask, board);
+                        }
+                        board.g.clear_vert(start);
+                    }
+                    resolve_depth_first(square, next_square, last_mask, self);
+                    self.g.clear_vert(square);
+                }
+            }
+        }
     }
 
     pub fn valid_moves(&self, store: &mut Vec<Move>) {
@@ -215,6 +329,13 @@ impl BoardState {
     pub fn is_valid(&self, m: Move) -> bool {
         match m {
             Move::Quantum(sq1, sq2) => {
+                if !self.cycle.is_empty() {
+                    return false;
+                }
+                // no classical moves
+                if sq1 == sq2 {
+                    return false;
+                };
                 // first assert both squares are classically empty
                 if !self.c.is_empty(sq1) {
                     return false;
@@ -234,7 +355,8 @@ impl BoardState {
             }
             Move::Collapse { sq, mov } => {
                 // ensure there is a cycle there
-                if !self.g.has_cycle(sq) {
+                let mut store = smallvec::SmallVec::new();
+                if !self.g.has_cycle(sq, &mut store) {
                     return false;
                 }
                 // there should also be a cycle from the last move
@@ -271,5 +393,25 @@ impl BoardState {
 
 fn wrap(idx: isize, len: usize) -> usize {
     let len = len as isize;
+    // rust uses the division operator instead of the modulus
     (((idx % len) + len) % len) as usize
+}
+
+#[cfg(test)]
+mod boardstate_test {
+    use super::*;
+
+    #[test]
+    fn bs_test() {
+        let mut b = BoardState::new();
+        let mut v = Vec::with_capacity(1000);
+        b.do_move(Move::Quantum(1, 0));
+        b.do_move(Move::Quantum(2, 1));
+        b.do_move(Move::Quantum(2, 0));
+        b.valid_moves(&mut v);
+        println!("{:#?}", v);
+        println!("{:#?}", b);
+        b.do_move(Move::Collapse { sq: 2, mov: 1 });
+        println!("{:#?}", b);
+    }
 }
