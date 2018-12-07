@@ -46,7 +46,34 @@ use std::fmt;
 
 impl fmt::Debug for ClassicalBoardState {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "ClassicalBoardState({:#032b})", self.0)
+        let get = |sq| {
+            if self.is_x(sq) {
+                "x"
+            } else if self.is_o(sq) {
+                "o"
+            } else {
+                " "
+            }
+        };
+        write!(
+            f,
+            "ClassicalBoardState {{
+\t{a0}|{a1}|{a2}
+\t-----
+\t{a3}|{a4}|{a5}
+\t-----
+\t{a6}|{a7}|{a8}
+}}",
+            a0 = get(0),
+            a1 = get(1),
+            a2 = get(2),
+            a3 = get(3),
+            a4 = get(4),
+            a5 = get(5),
+            a6 = get(6),
+            a7 = get(7),
+            a8 = get(8)
+        )
     }
 }
 
@@ -230,6 +257,7 @@ impl BoardState {
                         .clear_edge(sq, self.cycle[wrap(idx as isize - 1, self.cycle.len())]);
                 }
                 resolve_depth_first(sq, last_mask, self);
+                self.cycle.clear();
                 fn resolve_depth_first(start: u8, last_mask: u16, board: &mut BoardState) {
                     // resolve this one
                     let decision_mask = board.q.mask_in(start) & last_mask;
@@ -238,12 +266,12 @@ impl BoardState {
                         0b000000001 => board.c.set_x(start),
                         0b000000010 => board.c.set_o(start),
                         0b000000100 => board.c.set_x(start),
-                        0b000001000 => board.c.set_x(start),
-                        0b000010000 => board.c.set_o(start),
-                        0b000100000 => board.c.set_x(start),
-                        0b001000000 => board.c.set_o(start),
-                        0b010000000 => board.c.set_x(start),
-                        0b100000000 => board.c.set_o(start),
+                        0b000001000 => board.c.set_o(start),
+                        0b000010000 => board.c.set_x(start),
+                        0b000100000 => board.c.set_o(start),
+                        0b001000000 => board.c.set_x(start),
+                        0b010000000 => board.c.set_o(start),
+                        0b100000000 => board.c.set_x(start),
                         _ => unreachable!(),
                     };
                     let next_last_mask = board.q.mask_in(start) & (!decision_mask);
@@ -357,14 +385,44 @@ impl BoardState {
                 let sq_check_1 = wrap(c_idx as isize - 1, self.cycle.len());
                 let sq_check_2 = wrap(c_idx as isize + 1, self.cycle.len());
 
-                if !self.q.is(mov, self.cycle[sq_check_1])
-                    && !self.q.is(mov, self.cycle[sq_check_2])
+                if !(self.q.is(mov, self.cycle[sq_check_1])
+                    || self.q.is(mov, self.cycle[sq_check_2]))
                 {
                     return false;
                 }
                 true
             }
         }
+    }
+
+    pub fn is_state_valid(&self) -> bool {
+        // if a square is classical, its graph and quanta must be empty
+        for i in 0..9 {
+            if !self.c.is_empty(i) {
+                if self.q.mask_in(i) > 0 {
+                    return false;
+                }
+                if self.g.edges()[i as usize] != [0; 9] {
+                    return false;
+                }
+            }
+        }
+
+        // ensure corresponse between graph and quantum states
+        for sq1 in 0..9 {
+            for sq2 in self.g.edges()[sq1 as usize]
+                .iter()
+                .enumerate()
+                .filter(|(_idx, &ct)| ct > 0)
+                .map(|(idx, _)| idx)
+            {
+                if self.q.mask_in(sq1) & self.q.mask_in(sq2 as u8) == 0 {
+                    return false;
+                }
+            }
+        }
+
+        true
     }
 }
 
@@ -379,16 +437,111 @@ mod boardstate_test {
     use super::*;
 
     #[test]
-    fn bs_test() {
+    fn three_cycle_tests() {
         let mut b = BoardState::new();
         let mut v = Vec::with_capacity(1000);
+        // various invariants are asserted in debug mode
         b.do_move(Move::Quantum(1, 0));
+        b.valid_moves(&mut v);
+        assert!(b.is_state_valid());
         b.do_move(Move::Quantum(2, 1));
+        b.valid_moves(&mut v);
+        assert!(b.is_state_valid());
         b.do_move(Move::Quantum(2, 0));
         b.valid_moves(&mut v);
-        println!("{:#?}", v);
-        println!("{:#?}", b);
+        assert!(b.is_state_valid());
         b.do_move(Move::Collapse { sq: 2, mov: 1 });
+        b.valid_moves(&mut v);
+        assert!(b.is_state_valid());
+        assert!(b.c.is_x(0));
+        assert!(b.c.is_x(1));
+        assert!(b.c.is_o(2));
+
+        b.do_move(Move::Quantum(3, 4));
+        b.valid_moves(&mut v);
+        assert!(b.is_state_valid());
+        b.do_move(Move::Quantum(4, 5));
+        b.valid_moves(&mut v);
+        assert!(b.is_state_valid());
+        b.do_move(Move::Quantum(5, 3));
+        b.valid_moves(&mut v);
+        assert!(b.is_state_valid());
+        b.do_move(Move::Collapse { sq: 3, mov: 3 });
+        b.valid_moves(&mut v);
+        assert!(b.is_state_valid());
+        assert!(b.c.is_o(3));
+        assert!(b.c.is_x(4));
+        assert!(b.c.is_o(5));
+
+        b.do_move(Move::Quantum(6, 7));
+        b.valid_moves(&mut v);
+        assert!(b.is_state_valid());
+        b.do_move(Move::Quantum(7, 8));
+        b.valid_moves(&mut v);
+        assert!(b.is_state_valid());
+        b.do_move(Move::Quantum(8, 6));
+        b.valid_moves(&mut v);
+        assert!(b.is_state_valid());
+        b.do_move(Move::Collapse { sq: 7, mov: 6 });
+        b.valid_moves(&mut v);
+        assert!(b.is_state_valid());
+        assert!(b.c.is_x(6));
+        assert!(b.c.is_x(7));
+        assert!(b.c.is_o(8));
         println!("{:#?}", b);
+    }
+
+    #[test]
+    fn large_collapse() {
+        let mut b = BoardState::new();
+        let mut v = Vec::with_capacity(1000);
+        // various invariants are asserted in debug mode
+        b.valid_moves(&mut v);
+        assert!(b.is_state_valid());
+        b.do_move(Move::Quantum(0, 1)); // 1
+        b.valid_moves(&mut v);
+        assert!(b.is_state_valid());
+        b.do_move(Move::Quantum(7, 8)); // 2
+        b.valid_moves(&mut v);
+        assert!(b.is_state_valid());
+        b.do_move(Move::Quantum(2, 4)); // 3
+        b.valid_moves(&mut v);
+        assert!(b.is_state_valid());
+        b.do_move(Move::Quantum(4, 5)); // 4
+        b.valid_moves(&mut v);
+        assert!(b.is_state_valid());
+        b.do_move(Move::Quantum(5, 6)); // 5
+        b.valid_moves(&mut v);
+        assert!(b.is_state_valid());
+        b.do_move(Move::Quantum(1, 2)); // 6
+        b.valid_moves(&mut v);
+        assert!(b.is_state_valid());
+        b.do_move(Move::Quantum(4, 8)); // 7
+        b.valid_moves(&mut v);
+        assert!(b.is_state_valid());
+        b.do_move(Move::Quantum(3, 7)); // 8
+        b.valid_moves(&mut v);
+        assert!(b.is_state_valid());
+        b.do_move(Move::Quantum(0, 6)); // 9
+        b.valid_moves(&mut v);
+        assert!(b.is_state_valid());
+        println!("{:#?}", b);
+        // b.do_move(Move::Collapse { sq: 4, mov: 6 }); // should panic, 6 isn't part of the cycle
+        b.do_move(Move::Collapse { sq: 4, mov: 2 });
+        println!("{:#?}", v);
+
+        assert!(b.is_state_valid());
+
+        println!("{:#?}", b);
+
+        assert!(b.c.is_x(1));
+        assert!(b.c.is_x(4));
+        assert!(b.c.is_x(6));
+        assert!(b.c.is_x(8));
+        assert!(b.c.is_x(0));
+        assert!(b.c.is_o(7));
+        assert!(b.c.is_o(5));
+        assert!(b.c.is_o(2));
+        assert!(b.c.is_o(3));
     }
 }
