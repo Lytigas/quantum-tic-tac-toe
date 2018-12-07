@@ -216,71 +216,48 @@ impl BoardState {
                     .nth(0)
                     .unwrap()
                     .0;
-                // turn the cycle into a line so that we don't backtrack
-                self.g
-                    .clear_edge(sq, self.cycle[wrap(idx as isize - 1, self.cycle.len())]);
-
                 // last mask contains the moves that were in the last square but did not become classical
-                let mut last_mask = QuantumBoardState::mask(mov);
+                let last_mask = QuantumBoardState::mask(mov);
 
-                // iterate starting at sq like the cycle was a circular buffer
-                let c_len = self.cycle.len();
-                for i in (0..c_len).map(|x| wrap((x + idx) as isize, c_len)) {
-                    // we should be able to greedily collapse nodes
-                    // once there's a cycle, all square connected to the cycle must be collapsed in a cycle resolution
-                    let square = self.cycle[i];
-                    let qmask = self.q.mask_in(self.cycle[i]);
-                    // the decision for this square must have been excluded from the last collapse and also be in this square
-                    let decision_mask = qmask & last_mask;
+                // destory the cycle, making the graph a tree so that we don't backtrack
+                // however, we need to ensure the the direction we collapse contains contains the other
+                // half the state we resolve to kick off the resolution in the dfs
+                let candidate_square = self.cycle[wrap(idx as isize + 1, self.cycle.len())];
+                if self.q.mask_in(candidate_square) & last_mask > 0 {
+                    self.g.clear_edge(sq, candidate_square);
+                } else {
+                    self.g
+                        .clear_edge(sq, self.cycle[wrap(idx as isize - 1, self.cycle.len())]);
+                }
+                resolve_depth_first(sq, last_mask, self);
+                fn resolve_depth_first(start: u8, last_mask: u16, board: &mut BoardState) {
+                    // resolve this one
+                    let decision_mask = board.q.mask_in(start) & last_mask;
                     match decision_mask {
-                        0b000000001 => self.c.set_x(square),
-                        0b000000010 => self.c.set_o(square),
-                        0b000000100 => self.c.set_x(square),
-                        0b000001000 => self.c.set_x(square),
-                        0b000010000 => self.c.set_o(square),
-                        0b000100000 => self.c.set_x(square),
-                        0b001000000 => self.c.set_o(square),
-                        0b010000000 => self.c.set_x(square),
-                        0b100000000 => self.c.set_o(square),
+                        // 0th - 8th bit
+                        0b000000001 => board.c.set_x(start),
+                        0b000000010 => board.c.set_o(start),
+                        0b000000100 => board.c.set_x(start),
+                        0b000001000 => board.c.set_x(start),
+                        0b000010000 => board.c.set_o(start),
+                        0b000100000 => board.c.set_x(start),
+                        0b001000000 => board.c.set_o(start),
+                        0b010000000 => board.c.set_x(start),
+                        0b100000000 => board.c.set_o(start),
                         _ => unreachable!(),
+                    };
+                    let next_last_mask = board.q.mask_in(start) & (!decision_mask);
+                    let edges = board.g.edges()[start as usize].clone();
+                    board.g.clear_vert(start);
+                    board.q.clear(start);
+                    for sq in edges
+                        .into_iter()
+                        .enumerate()
+                        .filter(|&(_idx, &amt)| amt > 0)
+                        .map(|(idx, _)| idx as u8)
+                    {
+                        resolve_depth_first(sq, next_last_mask, board);
                     }
-                    last_mask = qmask & (!decision_mask);
-                    self.q.clear(square);
-                    let next_square = self.cycle[wrap(i as isize + 1, self.cycle.len())];
-                    fn resolve_depth_first(
-                        start: u8,
-                        parent: u8,
-                        last_mask: u16,
-                        board: &mut BoardState,
-                    ) {
-                        // resolve this one
-                        let decision_mask = board.q.mask_in(start) & last_mask;
-                        match decision_mask {
-                            0b000000001 => board.c.set_x(start),
-                            0b000000010 => board.c.set_o(start),
-                            0b000000100 => board.c.set_x(start),
-                            0b000001000 => board.c.set_x(start),
-                            0b000010000 => board.c.set_o(start),
-                            0b000100000 => board.c.set_x(start),
-                            0b001000000 => board.c.set_o(start),
-                            0b010000000 => board.c.set_x(start),
-                            0b100000000 => board.c.set_o(start),
-                            _ => unreachable!(),
-                        };
-                        let next_last_mask = board.q.mask_in(start) & (!decision_mask);
-                        for sq in board.g.edges()[start as usize]
-                            .clone()
-                            .into_iter()
-                            .enumerate()
-                            .filter(|&(idx, &amt)| amt > 0 && idx != parent as usize)
-                            .map(|(idx, _)| idx)
-                        {
-                            resolve_depth_first(sq as u8, start, next_last_mask, board);
-                        }
-                        board.g.clear_vert(start);
-                    }
-                    resolve_depth_first(square, next_square, last_mask, self);
-                    self.g.clear_vert(square);
                 }
             }
         }

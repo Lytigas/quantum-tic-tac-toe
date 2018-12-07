@@ -17,8 +17,8 @@ impl BoardGraph {
 
     pub fn clear_edge(&mut self, u: u8, v: u8) {
         debug_assert!(u != v);
-        self.edges[u as usize][v as usize] = 0;
-        self.edges[v as usize][u as usize] = 0;
+        self.edges[u as usize][v as usize] -= 1;
+        self.edges[v as usize][u as usize] -= 1;
     }
 
     pub fn has_cycle(&self, start: u8, store: &mut smallvec::SmallVec<[u8; 9]>) -> bool {
@@ -62,7 +62,8 @@ impl BoardGraph {
                     } else {
                         None
                     }
-                }) {
+                })
+            {
                 if bfs(v as u8, Some(start), visited, graph, store) {
                     if start != store[0] {
                         store.push(start);
@@ -94,7 +95,9 @@ impl BoardGraph {
 use std::fmt;
 impl fmt::Debug for BoardGraph {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "BoardGraph {{
+        write!(
+            f,
+            "BoardGraph {{
 \t   0  1  2  3  4  5  6  7  8
 \t0 {:?}
 \t1 {:?}
@@ -106,7 +109,17 @@ impl fmt::Debug for BoardGraph {
 \t7 {:?}
 \t8 {:?}
 }}
-", self.edges[0], self.edges[1], self.edges[2],self.edges[3],self.edges[4],self.edges[5],self.edges[6],self.edges[7],self.edges[8])
+",
+            self.edges[0],
+            self.edges[1],
+            self.edges[2],
+            self.edges[3],
+            self.edges[4],
+            self.edges[5],
+            self.edges[6],
+            self.edges[7],
+            self.edges[8]
+        )
     }
 }
 
