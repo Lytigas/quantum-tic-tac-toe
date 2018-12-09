@@ -306,6 +306,14 @@ impl BoardState {
         }
     }
 
+    pub fn classic(&self) -> &ClassicalBoardState {
+        &self.c
+    }
+
+    pub fn quantum(&self) -> &QuantumBoardState {
+        &self.q
+    }
+
     pub fn do_move(&mut self, m: Move) {
         debug_assert!(self.is_valid(m));
         match m {

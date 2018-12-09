@@ -1,0 +1,34 @@
+
+
+          |          |
+ X1 O2 X3 | X1 O2 X3 | X1 O2 X3
+ O4 X5 O6 | O4 X5 O6 | O4 X5 O6
+ X7 O8 X9 | X7 O8 X9 | X7 O8 X9
+__________|__________|___________
+          |          |
+ X1 O2 X3 | X1 O2 X3 | X1 O2 X3
+ O4 X5 O6 | O4 X5 O6 | O4 X5 O6
+ X7 O8 X9 | X7 O8 X9 | X7 O8 X9
+__________|__________|___________
+          |          |
+ X1 O2 X3 | X1 O2 X3 | X1 O2 X3
+ O4 X5 O6 | O4 X5 O6 | O4 X5 O6
+ X7 O8 X9 | X7 O8 X9 | X7 O8 X9
+          |          |
+
+
+          |          |
+ X1 O2 X3 |  XX  XX  | OOOOOO
+ O4 X5 O6 |   XXXX   | OO  OO
+ X7 O8 X9 |  XX  XX  | OOOOOO
+__________|__________|___________
+          |          |
+ X1 O2 X3 | X1 O2 X3 | X1 O2 X3
+ O4 X5 O6 | O4 X5 O6 | O4 X5 O6
+ X7 O8 X9 | X7 O8 X9 | X7 O8 X9
+__________|__________|___________
+          |          |
+ X1 O2 X3 | X1 O2 X3 | X1 O2 X3
+ O4 X5 O6 | O4 X5 O6 | O4 X5 O6
+ X7 O8 X9 | X7 O8 X9 | X7 O8 X9
+          |          |
