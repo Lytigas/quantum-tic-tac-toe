@@ -11,11 +11,11 @@ impl ClassicalBoardState {
         Self(0)
     }
 
-    fn x_mask(sq: u8) -> u32 {
+    const fn x_mask(sq: u8) -> u32 {
         1 << (2 * sq)
     }
 
-    fn o_mask(sq: u8) -> u32 {
+    const fn o_mask(sq: u8) -> u32 {
         1 << (2 * sq + 1)
     }
 
@@ -39,6 +39,88 @@ impl ClassicalBoardState {
 
     pub fn is_empty(&self, sq: u8) -> bool {
         !(self.is_o(sq) || self.is_x(sq))
+    }
+
+    pub fn x_wins(&self) -> bool {
+        // contains all the masks in which x could win, there's only 8!
+        const X_WINS_MASKS: [u32; 8] = [
+            // horizontals
+            ClassicalBoardState::x_mask(0)
+                | ClassicalBoardState::x_mask(1)
+                | ClassicalBoardState::x_mask(2),
+            ClassicalBoardState::x_mask(3)
+                | ClassicalBoardState::x_mask(4)
+                | ClassicalBoardState::x_mask(5),
+            ClassicalBoardState::x_mask(6)
+                | ClassicalBoardState::x_mask(7)
+                | ClassicalBoardState::x_mask(8),
+            // verticals
+            ClassicalBoardState::x_mask(0)
+                | ClassicalBoardState::x_mask(3)
+                | ClassicalBoardState::x_mask(6),
+            ClassicalBoardState::x_mask(1)
+                | ClassicalBoardState::x_mask(4)
+                | ClassicalBoardState::x_mask(7),
+            ClassicalBoardState::x_mask(2)
+                | ClassicalBoardState::x_mask(5)
+                | ClassicalBoardState::x_mask(8),
+            // diagonals
+            ClassicalBoardState::x_mask(0)
+                | ClassicalBoardState::x_mask(4)
+                | ClassicalBoardState::x_mask(7),
+            ClassicalBoardState::x_mask(2)
+                | ClassicalBoardState::x_mask(4)
+                | ClassicalBoardState::x_mask(6),
+        ];
+        let mut wins = false;
+        // faster to branch or not?
+        for &mask in X_WINS_MASKS.iter() {
+            wins = wins || (self.0 & mask == mask)
+        }
+        wins
+    }
+
+    pub fn o_wins(&self) -> bool {
+        // contains all the masks in which x could win, there's only 8!
+        const X_WINS_MASKS: [u32; 8] = [
+            // horizontals
+            ClassicalBoardState::o_mask(0)
+                | ClassicalBoardState::o_mask(1)
+                | ClassicalBoardState::o_mask(2),
+            ClassicalBoardState::o_mask(3)
+                | ClassicalBoardState::o_mask(4)
+                | ClassicalBoardState::o_mask(5),
+            ClassicalBoardState::o_mask(6)
+                | ClassicalBoardState::o_mask(7)
+                | ClassicalBoardState::o_mask(8),
+            // verticals
+            ClassicalBoardState::o_mask(0)
+                | ClassicalBoardState::o_mask(3)
+                | ClassicalBoardState::o_mask(6),
+            ClassicalBoardState::o_mask(1)
+                | ClassicalBoardState::o_mask(4)
+                | ClassicalBoardState::o_mask(7),
+            ClassicalBoardState::o_mask(2)
+                | ClassicalBoardState::o_mask(5)
+                | ClassicalBoardState::o_mask(8),
+            // diagonals
+            ClassicalBoardState::o_mask(0)
+                | ClassicalBoardState::o_mask(4)
+                | ClassicalBoardState::o_mask(7),
+            ClassicalBoardState::o_mask(2)
+                | ClassicalBoardState::o_mask(4)
+                | ClassicalBoardState::o_mask(6),
+        ];
+        let mut wins = false;
+        // faster to branch or not?
+        for &mask in X_WINS_MASKS.iter() {
+            wins = wins || (self.0 & mask == mask)
+        }
+        wins
+    }
+
+    pub fn has_winner(&self) -> bool {
+        self.x_wins() || self.o_wins()
     }
 }
 
@@ -293,6 +375,9 @@ impl BoardState {
 
     pub fn valid_moves(&self, store: &mut Vec<Move>) {
         store.clear();
+        if self.c.has_winner() {
+            return;
+        }
         if !self.cycle.is_empty() {
             // collapse the cycle at its start
             let square = self.q.mask_in(self.cycle[0]);
@@ -332,6 +417,9 @@ impl BoardState {
     }
 
     pub fn is_valid(&self, m: Move) -> bool {
+        if self.c.has_winner() {
+            return false;
+        }
         match m {
             Move::Quantum(sq1, sq2) => {
                 if !self.cycle.is_empty() {
@@ -543,5 +631,18 @@ mod boardstate_test {
         assert!(b.c.is_o(5));
         assert!(b.c.is_o(2));
         assert!(b.c.is_o(3));
+    }
+
+    #[test]
+    fn win_conditions() {
+        let mut c = ClassicalBoardState::new();
+        assert!(!c.x_wins());
+        c.set_x(0);
+        c.set_x(1);
+        assert!(!c.x_wins());
+        c.set_x(2);
+        assert!(!c.o_wins());
+        assert!(c.x_wins());
+        // add more eventually
     }
 }
