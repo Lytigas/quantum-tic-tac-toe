@@ -5,6 +5,10 @@ authors = ["Josh Hejna <josh.hejna@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-rayon = "1.0.3"
-ego-tree = "0.6.0"
 smallvec = "0.6.7"
+colored = "1.0"
+regex = "1.0"
+lazy_static = "1.0"
+# ego-tree = "0.6.0"
+# rayon = "1.0.3"
+# tui = "0.3.0"

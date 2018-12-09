@@ -1,20 +1,70 @@
+use lazy_static::lazy_static;
 use qtictac_ai::*;
+use regex::Regex;
 
 fn main() {
     let mut b = BoardState::new();
+    let mut input = String::new();
+    let stdin = std::io::stdin();
 
-    b.do_move(Move::Quantum(0, 1)); // 1
-    b.do_move(Move::Quantum(7, 8)); // 2
-    b.do_move(Move::Quantum(2, 4)); // 3
-    b.do_move(Move::Quantum(4, 5)); // 4
-    b.do_move(Move::Quantum(5, 6)); // 5
-    b.do_move(Move::Quantum(1, 2)); // 6
-    b.do_move(Move::Quantum(4, 8)); // 7
-    b.do_move(Move::Quantum(3, 7)); // 8
-    b.do_move(Move::Quantum(0, 6)); // 9
-    println!("{}", render_board(&b).unwrap());
-    b.do_move(Move::Collapse { sq: 4, mov: 2 });
-    println!("{}", render_board(&b).unwrap());
+    while !b.classic().has_winner() {
+        println!("{}", render_board(&b).unwrap());
+        let mover = ['X', 'O'][b.next_mov() as usize % 2];
+        if b.has_cycle() {
+            println!("{} must resolve the cycle!", mover);
+            loop {
+                input.clear();
+                stdin.read_line(&mut input).unwrap();
+                match two_num_from_input(&input) {
+                    Some((sq, mov)) => {
+                        let mov = Move::Collapse {
+                            sq: sq - 1,
+                            mov: mov - 1,
+                        };
+                        if b.is_valid(mov) {
+                            b.do_move(mov);
+                            break;
+                        }
+                        println!("Invalid move!");
+                    }
+                    _ => {}
+                }
+            }
+        } else {
+            println!("{}'s move!", mover);
+            loop {
+                input.clear();
+                stdin.read_line(&mut input).unwrap();
+                match two_num_from_input(&input) {
+                    Some((sq1, sq2)) => {
+                        let mov = Move::Quantum(sq1 - 1, sq2 - 1);
+                        if b.is_valid(mov) {
+                            b.do_move(mov);
+                            break;
+                        }
+                        println!("Invalid move!");
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+    match (b.classic().x_wins(), b.classic().o_wins()) {
+        (true, true) => println!("Tie game!"),
+        (true, false) => println!("X wins!"),
+        (false, true) => println!("O wins!"),
+        (false, false) => unreachable!(),
+    }
+}
+
+fn two_num_from_input(input: &str) -> Option<(u8, u8)> {
+    lazy_static! {
+        static ref RE: Regex = Regex::new("([1-9])[ ,-:_|]*([1-9])").unwrap();
+    }
+    match RE.captures(&input) {
+        Some(cap) => Some((cap[1].parse::<u8>().unwrap(), cap[2].parse::<u8>().unwrap())),
+        None => None,
+    }
 }
 
 use colored::{Color, Colorize};

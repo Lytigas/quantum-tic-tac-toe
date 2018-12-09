@@ -314,6 +314,14 @@ impl BoardState {
         &self.q
     }
 
+    pub fn next_mov(&self) -> u8 {
+        self.next_mov
+    }
+
+    pub fn has_cycle(&self) -> bool {
+        self.cycle.len() > 0
+    }
+
     pub fn do_move(&mut self, m: Move) {
         debug_assert!(self.is_valid(m));
         match m {
