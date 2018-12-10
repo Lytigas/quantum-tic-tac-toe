@@ -21,6 +21,7 @@ impl BoardGraph {
         self.edges[v as usize][u as usize] -= 1;
     }
 
+    // finds the cycle in the graph if there is one and stores it in the given vector
     pub fn has_cycle(&self, start: u8, store: &mut smallvec::SmallVec<[u8; 9]>) -> bool {
         store.clear();
         // case 1: cycle of length 2
@@ -48,6 +49,7 @@ impl BoardGraph {
                 store.push(start);
                 return true;
             };
+            // Some and None are the variants of the `Option` enum
             visited[start as usize] = true;
             let parent_idx = match parent {
                 Some(p) => p as usize,
@@ -80,6 +82,7 @@ impl BoardGraph {
         !store.is_empty()
     }
 
+    // clears all edges with the vertex
     pub fn clear_vert(&mut self, v: u8) {
         self.edges[v as usize] = [0; 9];
         for arr in self.edges.iter_mut() {
@@ -92,6 +95,7 @@ impl BoardGraph {
     }
 }
 
+// more debugging stuff you can ignore
 use std::fmt;
 impl fmt::Debug for BoardGraph {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

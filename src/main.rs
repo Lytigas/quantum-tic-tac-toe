@@ -11,7 +11,7 @@ fn main() {
         println!("{}", render_board(&b).unwrap());
         let mover = ['X', 'O'][b.next_mov() as usize % 2];
         if b.has_cycle() {
-            println!("{} must resolve the cycle!", mover);
+            println!("{} must resolve the cycle!", mover); // this call uses a format syntax, where each "{}" is replaced with the corresponding argument
             loop {
                 input.clear();
                 stdin.read_line(&mut input).unwrap();
@@ -49,6 +49,7 @@ fn main() {
             }
         }
     }
+    println!("{}", render_board(&b).unwrap());
     match (b.classic().x_wins(), b.classic().o_wins()) {
         (true, true) => println!("Tie game!"),
         (true, false) => println!("X wins!"),
@@ -69,6 +70,7 @@ fn two_num_from_input(input: &str) -> Option<(u8, u8)> {
 
 use colored::{Color, Colorize};
 use std::fmt::{self, Write};
+// the Result type and `?` throughout this method are just for handling IO errors and can be ignored
 fn render_board(b: &BoardState) -> Result<String, fmt::Error> {
     fn slice(b: &BoardState, buf: &mut String, sq: u8, row: usize) -> fmt::Result {
         // slice tells us whether its the top, bottom, or middle line of 3 char tall section
@@ -83,6 +85,7 @@ fn render_board(b: &BoardState) -> Result<String, fmt::Error> {
                 if !b.quantum().is(mov as u8, sq) {
                     write!(buf, "   ")?;
                 } else {
+                    // bring the colors into scope for formatting with them
                     use self::Color::*;
                     write!(
                         buf,
@@ -109,7 +112,7 @@ fn render_board(b: &BoardState) -> Result<String, fmt::Error> {
     }
     let mut buf = String::new();
 
-    writeln!(buf, "          |          |           ")?;
+    writeln!(buf, "1         |2         |3          ")?;
     for big_row in 0..3 {
         for small_row in 0..3 {
             slice(b, &mut buf, 3 * big_row + 0, small_row)?;
@@ -121,7 +124,13 @@ fn render_board(b: &BoardState) -> Result<String, fmt::Error> {
         }
         if big_row < 2 {
             writeln!(buf, "__________|__________|___________")?;
-            writeln!(buf, "          |          |           ")?;
+            writeln!(
+                buf,
+                "{}         |{}         |{}          ",
+                big_row * 3 + 4,
+                big_row * 3 + 5,
+                big_row * 3 + 6
+            )?;
         }
     }
 

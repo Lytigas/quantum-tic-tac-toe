@@ -1,16 +1,33 @@
+// Start reading here!
+// A lot of the bit-tricks here are used because I'm planning on adding an AI
+// which will need to search lots of BoardStates, so memory was a concern
+
+// imports some stuff I use in testing, not important for the code
 #![feature(test)]
 extern crate test;
 
+// declares the module graph, which is defined in graph.rs
 pub mod graph;
 
+// declares a Copy struct (implicitly copied when passed as an argument, like an integer)
+// with one member, called `self.0` which has type u32
+// integer types are denoted by their sign (u for unsigned, i for signed) and the number of bits
+// so u32 is a 32-bit unsigned integer
+// usize and isize are signed and unsigned integers of the width of a pointer. On 64 bit architectures its a 64 bit integer
+// usize is used for array and vector indices, and casts are done with the `as` operator.
 #[derive(Copy, Clone)]
 pub struct ClassicalBoardState(u32);
 
+// defines methods (or static functions) on the ClassicalBoardState struct
 impl ClassicalBoardState {
+    // defines a static method like `ClassicalBoardState::new()` that returns an instance with the member having the value 0
+    // this is a PUBlic FuNction, hence `pub fn`
     pub fn new() -> Self {
         Self(0)
     }
 
+    // another static method, taking an unsigned byte and returning a 32-bit unsigned integer
+    // computes a bit mask used for efficient storage
     const fn x_mask(sq: u8) -> u32 {
         1 << (2 * sq)
     }
@@ -19,6 +36,11 @@ impl ClassicalBoardState {
         1 << (2 * sq + 1)
     }
 
+    // this is a method, invokable like
+    // `let classical_board = ClassicalBoardState::new(); classical_board.set_x(2);`
+    // the first argument is `self`, which makes it a method like in Python
+    // Also, the method takes a mutable reference (`&mut`) which does not consume the instance but can mutate it.
+    // sq is short for square, ab abbreviation used throughout
     pub fn set_x(&mut self, sq: u8) {
         self.0 |= Self::x_mask(sq);
         self.0 &= !Self::o_mask(sq);
@@ -29,6 +51,8 @@ impl ClassicalBoardState {
         self.0 &= !Self::x_mask(sq);
     }
 
+    // This is another method, but this one takes a immutable reference (&self), so it cannot mutate the instance it is called on.
+    // in Rust, the last value in a scope is implicitly returned, hence no semicolon at the end and no `return` keyword
     pub fn is_x(&self, sq: u8) -> bool {
         self.0 & Self::x_mask(sq) > 0
     }
@@ -43,6 +67,7 @@ impl ClassicalBoardState {
 
     pub fn x_wins(&self) -> bool {
         // contains all the masks in which x could win, there's only 8!
+        // the type of this variable is [u32; 8], which is an array of u32  with length 8
         const X_WINS_MASKS: [u32; 8] = [
             // horizontals
             ClassicalBoardState::x_mask(0)
@@ -72,8 +97,11 @@ impl ClassicalBoardState {
                 | ClassicalBoardState::x_mask(4)
                 | ClassicalBoardState::x_mask(6),
         ];
+        // `let` declares a variable, which is immutable by default. Adding `mut` makes the variable mutable.
         let mut wins = false;
         // faster to branch or not?
+        // `.iter()` takes an iterable container, like an array, and returns an iterator that yields a reference to each item in the container
+        // the `&mask` pattern-matches / destructures the reference, so that `mask` contains the actual value.
         for &mask in X_WINS_MASKS.iter() {
             wins = wins || (self.0 & mask == mask)
         }
@@ -81,7 +109,8 @@ impl ClassicalBoardState {
     }
 
     pub fn o_wins(&self) -> bool {
-        // contains all the masks in which x could win, there's only 8!
+        // contains all the masks in which o could win, there's only 8!
+        // the type of this variable is [u32; 8], which is an array of u32  with length 8
         const X_WINS_MASKS: [u32; 8] = [
             // horizontals
             ClassicalBoardState::o_mask(0)
@@ -112,7 +141,7 @@ impl ClassicalBoardState {
                 | ClassicalBoardState::o_mask(6),
         ];
         let mut wins = false;
-        // faster to branch or not?
+        // TODO faster to branch or not?
         for &mask in X_WINS_MASKS.iter() {
             wins = wins || (self.0 & mask == mask)
         }
@@ -124,8 +153,9 @@ impl ClassicalBoardState {
     }
 }
 
+// this code defines how the ClassicalBoardState is printed when debugging
+// there's a lot of rust-specific stuff here you can ignore, it doesn't affect the game logic at all
 use std::fmt;
-
 impl fmt::Debug for ClassicalBoardState {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let get = |sq| {
@@ -159,6 +189,7 @@ impl fmt::Debug for ClassicalBoardState {
     }
 }
 
+// defines another struct with one member of type [u16; 9], an array of u16 with length 9
 #[derive(Clone)]
 pub struct QuantumBoardState([u16; 9]);
 
@@ -208,6 +239,7 @@ impl QuantumBoardState {
     }
 }
 
+// again, only used for debugging
 impl fmt::Debug for QuantumBoardState {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
@@ -230,6 +262,7 @@ impl fmt::Debug for QuantumBoardState {
     }
 }
 
+// this just contains a lot of tests for the hidden board types, the stuff around the tests is unimportant
 #[cfg(test)]
 mod hidden_board_test {
     use super::*;
@@ -278,21 +311,30 @@ mod hidden_board_test {
     }
 }
 
+// this is enum, not a struct
+// enums in rust can have data associated with each discriminant (enums are also known as tagged unions)
+// in this case, the `Quantum` type represents a normal move that occurs in two places at once
+// the locations are represented as a tuple of 2 u8
+// the Collapse discriminant has two named fields, the square we collapse first and the move we set it to
 #[derive(Copy, Clone, Debug)]
 pub enum Move {
     Quantum(u8, u8),
     Collapse { sq: u8, mov: u8 },
 }
 
+// import the BoardGraph struct from graph.rs
 use self::graph::BoardGraph;
 
 #[derive(Clone, Debug)]
 pub struct BoardState {
-    c: ClassicalBoardState,
-    q: QuantumBoardState,
-    g: BoardGraph,
-    next_mov: u8,
-    cycle: smallvec::SmallVec<[u8; 9]>,
+    c: ClassicalBoardState, // tracks classical moves for win detection, etc.
+    q: QuantumBoardState,   // tracks quantum moves not yet collapsed
+    g: BoardGraph, // tracks the dependencies between squares based on quantum moves for cycle detections
+    next_mov: u8,  // tracks who is to move next and what number move it is
+    cycle: smallvec::SmallVec<[u8; 9]>, // A `SmallVec` is like an ArrayList in java
+                   // the "small" part is because the array is stack allocated if its small enough
+                   // in this case its a SmallVec of u8 that's stack allocated for up to 9 items
+                   // this variable contains all the squares in a cycle if there is one
 }
 
 impl BoardState {
@@ -306,6 +348,7 @@ impl BoardState {
         }
     }
 
+    // this is what a getter looks like, it takes an immutable reference to self and returns an immutable reference to a member
     pub fn classic(&self) -> &ClassicalBoardState {
         &self.c
     }
@@ -314,6 +357,7 @@ impl BoardState {
         &self.q
     }
 
+    // since u8 and bool are copied implicitly, there's no reference in the return type
     pub fn next_mov(&self) -> u8 {
         self.next_mov
     }
@@ -322,8 +366,10 @@ impl BoardState {
         self.cycle.len() > 0
     }
 
+    // mutates the board by doing the move given to the method
     pub fn do_move(&mut self, m: Move) {
         debug_assert!(self.is_valid(m));
+        // match is like switch, but it does destructuring on the enum variants
         match m {
             Move::Quantum(sq1, sq2) => {
                 self.q.add(self.next_mov, sq1, sq2);
@@ -332,15 +378,21 @@ impl BoardState {
                 self.g.has_cycle(sq1, &mut self.cycle);
             }
             Move::Collapse { sq, mov } => {
+                // this branch can assume there is a cycle and that the square and move given are part of it
+
                 // find the index of sq in the cycle
                 let idx = self
                     .cycle
                     .iter()
-                    .enumerate()
-                    .filter(|(_idx, &s)| s == sq)
+                    .enumerate() // enumerate takes an iterator and turns it into an iterator over a tuple: (index, value)
+                    .filter(|(_idx, &s)| s == sq) // the syntax here defines a lambda/closure (thats the `| |`), which destructures the
+                    // tuple from enumurate() into an index and the square
                     .nth(0)
-                    .unwrap()
-                    .0;
+                    .unwrap() // Rust has a special type, `Option`, which is an enum that makes a type nullable, basically.
+                    // unwrap() takes an Option and if its not null, returns the value. If it is null, the program crashes
+                    // here I know invariants are being upheld that allow me to unwrap the Option
+                    .0; // returns the first value from the tuple, the index
+
                 // last mask contains the moves that were in the last square but did not become classical
                 let last_mask = QuantumBoardState::mask(mov);
 
@@ -355,10 +407,11 @@ impl BoardState {
                         .clear_edge(sq, self.cycle[wrap(idx as isize - 1, self.cycle.len())]);
                 }
                 resolve_depth_first(sq, last_mask, self);
-                self.cycle.clear();
+                self.cycle.clear(); // clear() empties the vector, but leaves the memory allocated for later reuse
                 fn resolve_depth_first(start: u8, last_mask: u16, board: &mut BoardState) {
                     // resolve this one
                     let decision_mask = board.q.mask_in(start) & last_mask;
+                    // in this case match functions exactly like switch
                     match decision_mask {
                         // 0th - 8th bit
                         0b000000001 => board.c.set_x(start),
@@ -370,12 +423,14 @@ impl BoardState {
                         0b001000000 => board.c.set_x(start),
                         0b010000000 => board.c.set_o(start),
                         0b100000000 => board.c.set_x(start),
+                        // `_` is a catch all, like `default` in other languages. unreachable!() crashes the program
                         _ => unreachable!(),
                     };
                     let next_last_mask = board.q.mask_in(start) & (!decision_mask);
                     let edges = board.g.edges()[start as usize].clone();
                     board.g.clear_vert(start);
                     board.q.clear(start);
+                    // finds squares connected to this one in the graph
                     for sq in edges
                         .into_iter()
                         .enumerate()
@@ -389,6 +444,7 @@ impl BoardState {
         }
     }
 
+    // this generates all valid moves for this board state. Planned to be used in the AI
     pub fn valid_moves(&self, store: &mut Vec<Move>) {
         store.clear();
         if self.c.has_winner() {
@@ -432,6 +488,7 @@ impl BoardState {
         store.iter().for_each(|m| debug_assert!(self.is_valid(*m)));
     }
 
+    // checks a bunch of invariants on the move to be sure its valid
     pub fn is_valid(&self, m: Move) -> bool {
         if self.c.has_winner() {
             return false;
@@ -499,6 +556,8 @@ impl BoardState {
         }
     }
 
+    // this checks that the all the different sub-boards (classical, quantum, and the graph) are in agreement
+    // used for tests
     pub fn is_state_valid(&self) -> bool {
         // if a square is classical, its graph and quanta must be empty
         for i in 0..9 {
@@ -530,6 +589,7 @@ impl BoardState {
     }
 }
 
+// utility function for iterating over arrays by index, because `%` is division and not modulus
 fn wrap(idx: isize, len: usize) -> usize {
     let len = len as isize;
     // rust uses the division operator instead of the modulus
