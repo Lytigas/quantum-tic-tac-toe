@@ -8,11 +8,15 @@ fn main() {
     let stdin = std::io::stdin();
 
     while !b.classic().has_winner() {
-        println!("{}", render_board(&b).unwrap());
         let mover = ['X', 'O'][b.next_mov() as usize % 2];
         if b.has_cycle() {
-            println!("{} must resolve the cycle!", mover); // this call uses a format syntax, where each "{}" is replaced with the corresponding argument
+            let mut flag = false;
             loop {
+                println!("{}", render_board(&b).unwrap());
+                if flag {
+                    print!("Invalid move! ");
+                }
+                println!("{} must resolve the cycle!", mover); // this call uses a format syntax, where each "{}" is replaced with the corresponding argument
                 input.clear();
                 stdin.read_line(&mut input).unwrap();
                 match two_num_from_input(&input) {
@@ -25,14 +29,19 @@ fn main() {
                             b.do_move(mov);
                             break;
                         }
-                        println!("Invalid move!");
                     }
                     _ => {}
                 }
+                flag = true;
             }
         } else {
-            println!("{}'s move!", mover);
+            let mut flag = false;
             loop {
+                println!("{}", render_board(&b).unwrap());
+                if flag {
+                    print!("Invalid move! ");
+                }
+                println!("{}'s move!", mover);
                 input.clear();
                 stdin.read_line(&mut input).unwrap();
                 match two_num_from_input(&input) {
@@ -42,10 +51,10 @@ fn main() {
                             b.do_move(mov);
                             break;
                         }
-                        println!("Invalid move!");
                     }
                     _ => {}
                 }
+                flag = true;
             }
         }
     }
