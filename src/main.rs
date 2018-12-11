@@ -9,53 +9,37 @@ fn main() {
 
     while !b.classic().has_winner() {
         let mover = ['X', 'O'][b.next_mov() as usize % 2];
-        if b.has_cycle() {
-            let mut flag = false;
-            loop {
-                println!("{}", render_board(&b).unwrap());
-                if flag {
-                    print!("Invalid move! ");
-                }
-                println!("{} must resolve the cycle!", mover); // this call uses a format syntax, where each "{}" is replaced with the corresponding argument
-                input.clear();
-                stdin.read_line(&mut input).unwrap();
-                match two_num_from_input(&input) {
-                    Some((sq, mov)) => {
-                        let mov = Move::Collapse {
-                            sq: sq - 1,
-                            mov: mov - 1,
-                        };
-                        if b.is_valid(mov) {
-                            b.do_move(mov);
-                            break;
-                        }
-                    }
-                    _ => {}
-                }
-                flag = true;
+        let mut has_tried = false;
+        loop {
+            println!("{}", render_board(&b).unwrap()); // this call uses a format syntax, where each "{}" is replaced with the corresponding argument
+            if has_tried {
+                print!("Invalid move! ");
             }
-        } else {
-            let mut flag = false;
-            loop {
-                println!("{}", render_board(&b).unwrap());
-                if flag {
-                    print!("Invalid move! ");
-                }
-                println!("{}'s move!", mover);
-                input.clear();
-                stdin.read_line(&mut input).unwrap();
-                match two_num_from_input(&input) {
-                    Some((sq1, sq2)) => {
-                        let mov = Move::Quantum(sq1 - 1, sq2 - 1);
-                        if b.is_valid(mov) {
-                            b.do_move(mov);
-                            break;
+            println!(
+                "{}{}",
+                mover,
+                ["'s move.", " must resolve the cycle!"][if b.has_cycle() { 1 } else { 0 }]
+            );
+            input.clear();
+            stdin.read_line(&mut input).unwrap();
+            match two_num_from_input(&input) {
+                Some((first, second)) => {
+                    let mov = if b.has_cycle() {
+                        Move::Collapse {
+                            sq: first - 1,
+                            mov: second - 1,
                         }
+                    } else {
+                        Move::Quantum(first - 1, second - 1)
+                    };
+                    if b.is_valid(mov) {
+                        b.do_move(mov);
+                        break;
                     }
-                    _ => {}
                 }
-                flag = true;
+                _ => {}
             }
+            has_tried = true;
         }
     }
     println!("{}", render_board(&b).unwrap());
@@ -72,6 +56,7 @@ fn two_num_from_input(input: &str) -> Option<(u8, u8)> {
         static ref RE: Regex = Regex::new("([1-9])[ ,-:_|]*([1-9])").unwrap();
     }
     match RE.captures(&input) {
+        // unwrap is ok becuase anything that matches the regex should parse correctly
         Some(cap) => Some((cap[1].parse::<u8>().unwrap(), cap[2].parse::<u8>().unwrap())),
         None => None,
     }
