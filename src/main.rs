@@ -3,6 +3,7 @@ use qtictac_ai::*;
 use regex::Regex;
 
 fn main() {
+    println!(include_str!("../instructions.txt"));
     let mut b = BoardState::new();
     let mut input = String::new();
     let stdin = std::io::stdin();
