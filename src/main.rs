@@ -1,17 +1,20 @@
+use ansi_escapes::EraseScreen;
 use lazy_static::lazy_static;
 use qtictac_ai::*;
 use regex::Regex;
 
 fn main() {
-    println!(include_str!("../instructions.txt"));
     let mut b = BoardState::new();
     let mut input = String::new();
     let stdin = std::io::stdin();
+    println!(include_str!("../instructions.txt"));
+    stdin.read_line(&mut input).unwrap(); // wait for user acknowledgement
 
     while !b.classic().has_winner() {
         let mover = ['X', 'O'][b.next_mov() as usize % 2];
         let mut has_tried = false;
         loop {
+            println!("{}", EraseScreen);
             println!("{}", render_board(&b).unwrap()); // this call uses a format syntax, where each "{}" is replaced with the corresponding argument
             if has_tried {
                 print!("Invalid move! ");
@@ -19,7 +22,10 @@ fn main() {
             println!(
                 "{}{}",
                 mover,
-                ["'s move.", " must resolve the cycle!"][if b.has_cycle() { 1 } else { 0 }]
+                [
+                    "'s move. (\"square1, square2\")",
+                    " must resolve the cycle! (\"square, move to collapse to\")"
+                ][if b.has_cycle() { 1 } else { 0 }]
             );
             input.clear();
             stdin.read_line(&mut input).unwrap();
@@ -43,6 +49,7 @@ fn main() {
             has_tried = true;
         }
     }
+    println!("{}", EraseScreen);
     println!("{}", render_board(&b).unwrap());
     match (b.classic().x_wins(), b.classic().o_wins()) {
         (true, true) => println!("Tie game!"),
@@ -94,7 +101,7 @@ fn render_board(b: &BoardState) -> Result<String, fmt::Error> {
                                 Magenta,
                                 Cyan,
                                 White,
-                                Black,
+                                BrightRed,
                                 BrightGreen
                             ][mov]
                         )
@@ -130,6 +137,11 @@ fn render_board(b: &BoardState) -> Result<String, fmt::Error> {
     }
 
     writeln!(buf, "          |          |           ")?;
+    // write the cycle if the board has it
+    if b.has_cycle() {
+        write!(buf, "Cycle:")?;
+        b.cycle().for_each(|sq| write!(buf, " {}", sq + 1).unwrap());
+    }
     Ok(buf)
 }
 

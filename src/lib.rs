@@ -357,6 +357,13 @@ impl BoardState {
         &self.q
     }
 
+    // unimportant plumbing, but for the curious:
+    // the signuture says that this returns some type that implements the iterator trait (kind of like an interface)
+    // that has the specialization that it iterates over `&u8`
+    pub fn cycle(&self) -> impl Iterator<Item = &u8> {
+        self.cycle.iter()
+    }
+
     // since u8 and bool are copied implicitly, there's no reference in the return type
     pub fn next_mov(&self) -> u8 {
         self.next_mov
