@@ -92,7 +92,7 @@ impl ClassicalBoardState {
             // diagonals
             ClassicalBoardState::x_mask(0)
                 | ClassicalBoardState::x_mask(4)
-                | ClassicalBoardState::x_mask(7),
+                | ClassicalBoardState::x_mask(8),
             ClassicalBoardState::x_mask(2)
                 | ClassicalBoardState::x_mask(4)
                 | ClassicalBoardState::x_mask(6),
@@ -135,7 +135,7 @@ impl ClassicalBoardState {
             // diagonals
             ClassicalBoardState::o_mask(0)
                 | ClassicalBoardState::o_mask(4)
-                | ClassicalBoardState::o_mask(7),
+                | ClassicalBoardState::o_mask(8),
             ClassicalBoardState::o_mask(2)
                 | ClassicalBoardState::o_mask(4)
                 | ClassicalBoardState::o_mask(6),
@@ -148,8 +148,16 @@ impl ClassicalBoardState {
         wins
     }
 
-    pub fn has_winner(&self) -> bool {
+    fn has_winner(&self) -> bool {
         self.x_wins() || self.o_wins()
+    }
+
+    pub fn game_is_over(&self) -> bool {
+        if self.has_winner() {
+            return true;
+        }
+        // the game is over if 8 or more squares are filled, as quantum moves cannot be in a single square
+        return self.0.count_ones() >= 8;
     }
 }
 
@@ -454,7 +462,7 @@ impl BoardState {
     // this generates all valid moves for this board state. Planned to be used in the AI
     pub fn valid_moves(&self, store: &mut Vec<Move>) {
         store.clear();
-        if self.c.has_winner() {
+        if self.c.game_is_over() {
             return;
         }
         if !self.cycle.is_empty() {
@@ -497,7 +505,7 @@ impl BoardState {
 
     // checks a bunch of invariants on the move to be sure its valid
     pub fn is_valid(&self, m: Move) -> bool {
-        if self.c.has_winner() {
+        if self.c.game_is_over() {
             return false;
         }
         match m {

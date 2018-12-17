@@ -10,7 +10,8 @@ fn main() {
     println!(include_str!("../instructions.txt"));
     stdin.read_line(&mut input).unwrap(); // wait for user acknowledgement
 
-    while !b.classic().has_winner() {
+    while !b.classic().game_is_over() {
+        // array literal thats indexed by the move
         let mover = ['X', 'O'][b.next_mov() as usize % 2];
         let mut has_tried = false;
         loop {
@@ -52,10 +53,9 @@ fn main() {
     println!("{}", EraseScreen);
     println!("{}", render_board(&b).unwrap());
     match (b.classic().x_wins(), b.classic().o_wins()) {
-        (true, true) => println!("Tie game!"),
+        (true, true) | (false, false) => println!("Tie game!"),
         (true, false) => println!("X wins!"),
         (false, true) => println!("O wins!"),
-        (false, false) => unreachable!(),
     }
 }
 
